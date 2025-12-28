@@ -1,0 +1,293 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JK-OPEN Credit Intelligence Platform (v3)</title>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<style>
+body{
+    margin:0;
+    font-family:Inter,Segoe UI,sans-serif;
+    background:linear-gradient(135deg,#dbefff,#eef6ff);
+    color:#0f172a;
+}
+.glass{
+    background:rgba(255,255,255,0.35);
+    backdrop-filter:blur(16px);
+    border-radius:18px;
+    box-shadow:0 10px 40px rgba(0,0,0,.12);
+    padding:22px;
+    margin:20px;
+}
+.filters{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:16px;
+}
+select{
+    padding:10px;
+    border-radius:10px;
+    border:none;
+}
+.tabs{
+    display:flex;
+    gap:12px;
+    margin:20px;
+    flex-wrap:wrap;
+}
+.tab{
+    padding:12px 22px;
+    border-radius:14px;
+    background:rgba(255,255,255,0.45);
+    cursor:pointer;
+}
+.tab.active{
+    background:rgba(255,255,255,0.9);
+    font-weight:600;
+}
+.dashboard{display:none}
+.dashboard.active{display:block}
+.chart{
+    width:40%;
+    min-width:420px;
+    height:360px;
+    margin:22px auto;
+}
+.section-title{
+    text-align:center;
+    font-weight:700;
+    margin-top:30px;
+    opacity:.85;
+}
+.flag{
+    text-align:center;
+    font-size:22px;
+    font-weight:700;
+    padding:12px;
+}
+.green{color:#065f46}
+.amber{color:#92400e}
+.red{color:#7f1d1d}
+.small{
+    font-size:13px;
+    opacity:.8;
+    text-align:center;
+}
+</style>
+</head>
+
+<body>
+
+<div class="glass">
+<h2>Query Based Filter (Mission YUVA Integrated)</h2>
+<div class="filters">
+<select id="district"></select>
+<select id="block"></select>
+<select id="village"></select>
+<select>
+<option>Rural</option>
+<option>Urban</option>
+</select>
+</div>
+</div>
+
+<div class="tabs">
+<div class="tab active" onclick="switchTab('overview')">KPI Overview</div>
+<div class="tab" onclick="switchTab('credit')">Credit Scoring</div>
+<div class="tab" onclick="switchTab('failure')">Failure Assessment</div>
+<div class="tab" onclick="switchTab('reentry')">Re-Entry Protocol</div>
+<div class="tab" onclick="switchTab('districtDash')">District View</div>
+</div>
+
+<!-- KPI OVERVIEW -->
+<div id="overview" class="dashboard active">
+<div class="section-title">Credit Readiness</div>
+<div id="ov_readiness" class="chart"></div>
+
+<div class="section-title">Credit Access Gaps</div>
+<div id="ov_gap" class="chart"></div>
+
+<div class="section-title">Risk & Stability</div>
+<div id="ov_risk" class="chart"></div>
+
+<div class="section-title">Economic Impact & Inclusion</div>
+<div id="ov_impact" class="chart"></div>
+</div>
+
+<!-- CREDIT -->
+<div id="credit" class="dashboard">
+<div id="creditGauge" class="chart"></div>
+<div id="creditRadar" class="chart"></div>
+<div class="small">Credit Score = avg(Density, Registration, Training, Repayment, SHG)</div>
+</div>
+
+<!-- FAILURE -->
+<div id="failure" class="dashboard">
+<div id="failureBar" class="chart"></div>
+<div id="failureScatter" class="chart"></div>
+<div id="riskFlag" class="flag"></div>
+</div>
+
+<!-- REENTRY -->
+<div id="reentry" class="dashboard">
+<div id="reentryGauge" class="chart"></div>
+<div id="reentryBars" class="chart"></div>
+<div class="small">Re-Entry Score = avg(Training, Repayment, SHG)</div>
+</div>
+
+<!-- DISTRICT -->
+<div id="districtDash" class="dashboard">
+<div id="districtAvg" class="chart"></div>
+</div>
+
+<script>
+const districts=["Kupwara","Baramulla","Anantnag","Pulwama"];
+let data=[];
+
+districts.forEach(d=>{
+  for(let b=1;b<=5;b++){
+    for(let v=1;v<=8;v++){
+      data.push({
+        district:d,
+        block:`${d}_Block${b}`,
+        village:`${d}_Block${b}_V${String(v).padStart(3,"0")}`,
+        density:5+Math.random()*55,
+        registration:10+Math.random()*65,
+        creditGap:40+Math.random()*50,
+        unregRatio:.3+Math.random()*4,
+        agri:20+Math.random()*50,
+        repayment:30+Math.random()*55,
+        training:15+Math.random()*65,
+        shg:10+Math.random()*55,
+        employment:1+Math.random()*5,
+        inclusion:25+Math.random()*50
+      });
+    }
+  }
+});
+
+const dSel=document.getElementById("district"),
+bSel=document.getElementById("block"),
+vSel=document.getElementById("village");
+
+districts.forEach(d=>dSel.innerHTML+=`<option>${d}</option>`);
+dSel.onchange=()=>{updateBlocks();renderDistrict();renderOverview();};
+bSel.onchange=()=>{updateVillages();renderOverview();};
+vSel.onchange=()=>{renderAll();};
+
+function updateBlocks(){
+bSel.innerHTML="";
+[...new Set(data.filter(x=>x.district==dSel.value).map(x=>x.block))]
+.forEach(b=>bSel.innerHTML+=`<option>${b}</option>`);
+updateVillages();
+}
+function updateVillages(){
+vSel.innerHTML="";
+data.filter(x=>x.block==bSel.value)
+.forEach(v=>vSel.innerHTML+=`<option>${v.village}</option>`);
+renderAll();
+}
+
+function switchTab(id){
+document.querySelectorAll(".dashboard").forEach(d=>d.classList.remove("active"));
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+document.getElementById(id).classList.add("active");
+event.target.classList.add("active");
+}
+
+function renderOverview(){
+let subset=data.filter(x=>x.district==dSel.value && x.block==bSel.value);
+let avg=k=>subset.reduce((s,x)=>s+x[k],0)/subset.length;
+
+Plotly.newPlot("ov_readiness",[{
+x:["Density","Registration","Training","Repayment","SHG"],
+y:[avg("density"),avg("registration"),avg("training"),avg("repayment"),avg("shg")],
+type:"bar"
+}],{title:"Average Credit Readiness Indicators"});
+
+Plotly.newPlot("ov_gap",[{
+labels:["High Gap","Moderate Gap","Low Gap"],
+values:[
+subset.filter(x=>x.creditGap>70).length,
+subset.filter(x=>x.creditGap>55 && x.creditGap<=70).length,
+subset.filter(x=>x.creditGap<=55).length
+],
+type:"pie"
+}],{title:"Credit Gap Distribution"});
+
+Plotly.newPlot("ov_risk",[{
+labels:["Agri Dominant","Diversified"],
+values:[
+subset.filter(x=>x.agri>50).length,
+subset.filter(x=>x.agri<=50).length
+],
+hole:.55,
+type:"pie"
+}],{title:"Sectoral Risk Profile"});
+
+Plotly.newPlot("ov_impact",[{
+x:["Employment","Inclusion"],
+y:[avg("employment"),avg("inclusion")],
+type:"bar"
+}],{title:"Economic Impact & Inclusion"});
+}
+
+function renderAll(){
+let v=data.find(x=>x.village==vSel.value); if(!v) return;
+
+let creditScore=(v.density+v.registration+v.training+v.repayment+v.shg)/5;
+Plotly.newPlot("creditGauge",[{
+type:"indicator",mode:"gauge+number",value:creditScore,
+gauge:{axis:{range:[0,100]}}}],{title:"Village Credit Readiness Score"});
+
+Plotly.newPlot("creditRadar",[{
+type:"scatterpolar",fill:"toself",
+r:[v.density,v.registration,v.training,v.repayment,v.shg],
+theta:["Density","Registration","Training","Repayment","SHG"]
+}],{title:"Credit Profile"});
+
+Plotly.newPlot("failureBar",[{
+x:["Credit Gap","Informality","Agri Dependence"],
+y:[v.creditGap,v.unregRatio*20,v.agri],
+type:"bar"
+}],{title:"Failure Drivers"});
+
+Plotly.newPlot("failureScatter",[{
+x:[v.training],y:[v.repayment],mode:"markers",marker:{size:16}
+}],{title:"Training vs Repayment"});
+
+let flag=document.getElementById("riskFlag");
+if(v.creditGap>70||v.unregRatio>3){flag.textContent="HIGH STRUCTURAL RISK";flag.className="flag red";}
+else if(v.creditGap>55){flag.textContent="MODERATE RISK";flag.className="flag amber";}
+else{flag.textContent="LOW RISK / STABLE";flag.className="flag green";}
+
+let reentryScore=(v.training+v.repayment+v.shg)/3;
+Plotly.newPlot("reentryGauge",[{
+type:"indicator",mode:"gauge+number",value:reentryScore,
+gauge:{axis:{range:[0,100]}}}],{title:"Re-Entry Eligibility Score"});
+
+Plotly.newPlot("reentryBars",[{
+x:["Training","Repayment","SHG"],
+y:[v.training,v.repayment,v.shg],
+type:"bar"
+}],{title:"Re-Entry Enablers"});
+}
+
+function renderDistrict(){
+let d=data.filter(x=>x.district==dSel.value);
+let avg=k=>d.reduce((s,x)=>s+x[k],0)/d.length;
+Plotly.newPlot("districtAvg",[{
+x:["Density","Registration","Training","Repayment","SHG"],
+y:[avg("density"),avg("registration"),avg("training"),avg("repayment"),avg("shg")],
+type:"bar"
+}],{title:"District Average Credit Indicators"});
+}
+
+dSel.selectedIndex=0;
+updateBlocks();
+renderDistrict();
+renderOverview();
+</script>
+</body>
+</html>
